@@ -3,104 +3,141 @@ import Summary from './components/Summary';
 import ExpenseForm from './components/ExpenseForm';
 import ExpenseList from './components/ExpenseList';
 import CategoryManager from './components/CategoryManager';
-
-// Categorías iniciales por defecto
-const initialCategories = [
-  { id: 'cat-1', name: 'Comida', icon: 'Utensils' },
-  { id: 'cat-2', name: 'Hogar', icon: 'Home' },
-  { id: 'cat-3', name: 'Servicios', icon: 'Zap' },
-  { id: 'cat-4', name: 'Ingresos', icon: 'DollarSign' },
-  { id: 'cat-5', name: 'Varios', icon: 'Tag' },
-];
-
-// Movimientos iniciales por defecto
-const initialExpenses = [
-  {
-    id: '1',
-    description: 'Supermercado',
-    amount: 45000,
-    type: 'expense',
-    category: 'Comida',
-    date: '2026-09-24'
-  },
-  {
-    id: '2',
-    description: 'Sueldo',
-    amount: 800000,
-    type: 'income',
-    category: 'Ingresos',
-    date: '2026-09-20'
-  }
-];
+import PeriodSelector from './components/PeriodSelector';
+import {
+  fetchCategories,
+  createCategoryApi,
+  updateCategoryApi,
+  deleteCategoryApi,
+  fetchExpenses,
+  createExpenseApi,
+  updateExpenseApi,
+  deleteExpenseApi,
+} from './utils/api';
 
 function App() {
-  // Estado de Gastos/Ingresos con localStorage
-  const [expenses, setExpenses] = useState(() => {
-    const savedExpenses = localStorage.getItem('expenses');
-    return savedExpenses ? JSON.parse(savedExpenses) : initialExpenses;
-  });
+  const getCurrentPeriod = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  };
 
-  // Estado de Categorías con localStorage
-  const [categories, setCategories] = useState(() => {
-    const savedCategories = localStorage.getItem('categories');
-    return savedCategories ? JSON.parse(savedCategories) : initialCategories;
-  });
+  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriod);
+  const [expenses, setExpenses] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Guardar cambios de expenses en localStorage
+  // Cargar Categorías iniciales desde MongoDB
   useEffect(() => {
-    localStorage.setItem('expenses', JSON.stringify(expenses));
-  }, [expenses]);
+    const loadCategories = async () => {
+      try {
+        const data = await fetchCategories();
+        // Mapeamos _id de MongoDB a id para mantener compatibilidad
+        const formatted = data.map((c) => ({ ...c, id: c._id }));
+        setCategories(formatted);
+      } catch (err) {
+        console.error('Error al cargar categorías:', err);
+      }
+    };
+    loadCategories();
+  }, []);
 
-  // Guardar cambios de categories en localStorage
+  // Cargar Movimientos cada vez que cambia el Período
   useEffect(() => {
-    localStorage.setItem('categories', JSON.stringify(categories));
-  }, [categories]);
+    const loadExpenses = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchExpenses(selectedPeriod);
+        const formatted = data.map((e) => ({ ...e, id: e._id }));
+        setExpenses(formatted);
+      } catch (err) {
+        console.error('Error al cargar movimientos:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadExpenses();
+  }, [selectedPeriod]);
 
   // --- Handlers para Movimientos ---
-  const handleAddExpense = (newExpense) => {
-    setExpenses([newExpense, ...expenses]);
+  const handleAddExpense = async (newExpenseData) => {
+    try {
+      const saved = await createExpenseApi(newExpenseData);
+      const formatted = { ...saved, id: saved._id };
+      setExpenses([formatted, ...expenses]);
+    } catch (err) {
+      console.error('Error al agregar movimiento:', err);
+    }
   };
 
-  const handleDeleteExpense = (id) => {
-    setExpenses(expenses.filter((expense) => expense.id !== id));
+  const handleDeleteExpense = async (id) => {
+    try {
+      await deleteExpenseApi(id);
+      setExpenses(expenses.filter((e) => e.id !== id));
+    } catch (err) {
+      console.error('Error al eliminar movimiento:', err);
+    }
   };
 
-  const handleUpdateExpense = (updatedExpense) => {
-    setExpenses(
-      expenses.map((item) =>
-        item.id === updatedExpense.id ? updatedExpense : item
-      )
-    );
+  const handleUpdateExpense = async (updatedExpense) => {
+    try {
+      const saved = await updateExpenseApi(updatedExpense.id, updatedExpense);
+      const formatted = { ...saved, id: saved._id };
+      setExpenses(
+        expenses.map((e) => (e.id === formatted.id ? formatted : e))
+      );
+    } catch (err) {
+      console.error('Error al actualizar movimiento:', err);
+    }
   };
 
   // --- Handlers para Categorías ---
-  const handleAddCategory = (newCategory) => {
-    setCategories([...categories, newCategory]);
+  const handleAddCategory = async (newCatData) => {
+    try {
+      const saved = await createCategoryApi(newCatData);
+      const formatted = { ...saved, id: saved._id };
+      setCategories([...categories, formatted]);
+    } catch (err) {
+      console.error('Error al agregar categoría:', err);
+    }
   };
 
-  const handleDeleteCategory = (id) => {
-    setCategories(categories.filter((cat) => cat.id !== id));
+  const handleDeleteCategory = async (id) => {
+    try {
+      await deleteCategoryApi(id);
+      setCategories(categories.filter((c) => c.id !== id));
+    } catch (err) {
+      console.error('Error al eliminar categoría:', err);
+    }
   };
 
-  const handleUpdateCategory = (updatedCategory) => {
-    setCategories(
-      categories.map((cat) =>
-        cat.id === updatedCategory.id ? updatedCategory : cat
-      )
-    );
+  const handleUpdateCategory = async (updatedCat) => {
+    try {
+      const saved = await updateCategoryApi(updatedCat.id, updatedCat);
+      const formatted = { ...saved, id: saved._id };
+      setCategories(
+        categories.map((c) => (c.id === formatted.id ? formatted : c))
+      );
+    } catch (err) {
+      console.error('Error al actualizar categoría:', err);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-100 py-10 px-4">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-extrabold text-center text-slate-800 mb-8">
-          Gestor de Gastos
+          Gestor de Gastos (MERN)
         </h1>
 
-        {/* Resumen Dashboard */}
+        <PeriodSelector
+          selectedPeriod={selectedPeriod}
+          onPeriodChange={setSelectedPeriod}
+        />
+
         <Summary expenses={expenses} />
 
-        {/* Gestor de Categorías */}
         <CategoryManager
           categories={categories}
           onAddCategory={handleAddCategory}
@@ -108,19 +145,24 @@ function App() {
           onUpdateCategory={handleUpdateCategory}
         />
 
-        {/* Formulario de Alta */}
         <ExpenseForm
           onAddExpense={handleAddExpense}
           categories={categories}
+          selectedPeriod={selectedPeriod}
         />
 
-        {/* Listado de Movimientos */}
-        <ExpenseList
-          expenses={expenses}
-          categories={categories}
-          onDeleteExpense={handleDeleteExpense}
-          onUpdateExpense={handleUpdateExpense}
-        />
+        {loading ? (
+          <div className="text-center py-8 text-slate-500 font-medium text-sm">
+            Cargando datos desde MongoDB...
+          </div>
+        ) : (
+          <ExpenseList
+            expenses={expenses}
+            categories={categories}
+            onDeleteExpense={handleDeleteExpense}
+            onUpdateExpense={handleUpdateExpense}
+          />
+        )}
       </div>
     </div>
   );

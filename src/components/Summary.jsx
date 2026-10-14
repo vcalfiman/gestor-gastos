@@ -1,11 +1,6 @@
+import { formatCurrency } from '../utils/formatters';
+
 function Summary({ expenses }) {
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
 
   const income = expenses
     .filter((item) => item.type === 'income')
