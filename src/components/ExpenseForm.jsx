@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { CirclePlus, CircleMinus } from 'lucide-react';
 import { CategoryIcon } from '../utils/categoryIcons';
+import IconPickerModal from './IconPickerModal';
+import { formatCurrency } from '../utils/formatters';
 
-function ExpenseForm({ onAddExpense, categories }) {
+function ExpenseForm({ onAddExpense, categories, selectedPeriod }) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
   const [category, setCategory] = useState(categories[0]?.name || 'Varios');
+  const [selectedIcon, setSelectedIcon] = useState('Zap'); // Ícono por defecto para el movimiento
+  const [isIconModalOpen, setIsIconModalOpen] = useState(false);
 
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -20,7 +24,6 @@ function ExpenseForm({ onAddExpense, categories }) {
     }
   }, [categories, category]);
 
-  // Cierra los desplegables al hacer clic fuera de ellos
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -41,19 +44,40 @@ function ExpenseForm({ onAddExpense, categories }) {
   }, []);
 
   const selectedCategoryObj = categories.find((c) => c.name === category);
-  const currentIconName = selectedCategoryObj?.icon || 'Tag';
+  const categoryDefaultIcon = selectedCategoryObj?.icon || 'Tag';
+
+  // Si cambia la categoría, solo actualizamos el nombre de la categoría,
+  const handleCategorySelect = (catName) => {
+    setCategory(catName);
+    setIsCategoryDropdownOpen(false);
+  };
+
+  const handleAmountChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '');
+    setAmount(value);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!description.trim() || !amount) return;
 
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(
+      now.getMonth() + 1
+    ).padStart(2, '0')}`;
+
+    const assignedDate =
+      selectedPeriod === currentMonthStr
+        ? now.toISOString().split('T')[0]
+        : `${selectedPeriod}-01`;
+
     onAddExpense({
-      id: crypto.randomUUID(),
       description,
       amount: Number(amount),
       type,
       category,
-      date: new Date().toISOString().split('T')[0],
+      icon: selectedIcon || categoryDefaultIcon,
+      date: assignedDate,
     });
 
     setDescription('');
@@ -67,24 +91,47 @@ function ExpenseForm({ onAddExpense, categories }) {
       </h3>
       <form
         onSubmit={handleSubmit}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3"
       >
+        {/* Selector de Ícono para el Movimiento */}
+        <div className="flex items-center justify-center">
+          <button
+            type="button"
+            onClick={() => setIsIconModalOpen(true)}
+            className="w-full h-10 flex items-center justify-center gap-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors bg-slate-50"
+            title="Seleccionar ícono del movimiento"
+          >
+            <CategoryIcon
+              iconName={selectedIcon}
+              className="w-5 h-5 text-blue-600"
+            />
+            <span className="text-xs text-slate-500 font-medium sm:hidden">
+              Cambiar ícono
+            </span>
+          </button>
+        </div>
+
+        {/* Descripción */}
         <input
           type="text"
-          placeholder="Descripción"
+          placeholder="Ej: Luz, Agua, Supermercado"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <input
-          type="number"
-          placeholder="Monto"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
 
-        {/* Custom Dropdown: Tipo (Gasto / Ingreso) */}
+        {/* Monto */}
+        <div className="relative flex items-center">
+          <input
+            type="text"
+            placeholder="Monto"
+            value={amount ? formatCurrency(amount) : ''}
+            onChange={handleAmountChange}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Dropdown: Tipo (Ingreso / Gasto) */}
         <div className="relative" ref={typeDropdownRef}>
           <button
             type="button"
@@ -121,7 +168,6 @@ function ExpenseForm({ onAddExpense, categories }) {
                 <CircleMinus className="w-4 h-4 flex-shrink-0 text-rose-600" />
                 <span>Gasto</span>
               </button>
-              
               <button
                 type="button"
                 onClick={() => {
@@ -141,7 +187,7 @@ function ExpenseForm({ onAddExpense, categories }) {
           )}
         </div>
 
-        {/* Custom Dropdown: Categorías */}
+        {/* Dropdown: Categorías Principales */}
         <div className="relative" ref={categoryDropdownRef}>
           <button
             type="button"
@@ -150,7 +196,7 @@ function ExpenseForm({ onAddExpense, categories }) {
           >
             <div className="flex items-center gap-2 truncate">
               <CategoryIcon
-                iconName={currentIconName}
+                iconName={categoryDefaultIcon}
                 className="w-4 h-4 text-blue-600 flex-shrink-0"
               />
               <span className="truncate">{category}</span>
@@ -162,12 +208,9 @@ function ExpenseForm({ onAddExpense, categories }) {
             <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-20 divide-y divide-slate-50">
               {categories.map((cat) => (
                 <button
-                  key={cat.id}
+                  key={cat.id || cat._id}
                   type="button"
-                  onClick={() => {
-                    setCategory(cat.name);
-                    setIsCategoryDropdownOpen(false);
-                  }}
+                  onClick={() => handleCategorySelect(cat.name)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors ${
                     category === cat.name
                       ? 'bg-blue-50 text-blue-600 font-semibold'
@@ -185,6 +228,7 @@ function ExpenseForm({ onAddExpense, categories }) {
           )}
         </div>
 
+        {/* Botón Guardar */}
         <button
           type="submit"
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
@@ -192,6 +236,17 @@ function ExpenseForm({ onAddExpense, categories }) {
           Agregar
         </button>
       </form>
+
+      {/* Modal para elegir el Ícono del Movimiento */}
+      <IconPickerModal
+        isOpen={isIconModalOpen}
+        onClose={() => setIsIconModalOpen(false)}
+        onSelectIcon={(iconName) => {
+          setSelectedIcon(iconName);
+          setIsIconModalOpen(false);
+        }}
+        currentIcon={selectedIcon}
+      />
     </div>
   );
 }

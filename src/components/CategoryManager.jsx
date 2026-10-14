@@ -1,206 +1,210 @@
 import { useState } from 'react';
-import { AVAILABLE_ICONS, CategoryIcon } from '../utils/categoryIcons';
+import { Plus, Trash2, Edit2, Check, X, Tag } from 'lucide-react';
+import { CategoryIcon } from '../utils/categoryIcons';
+import IconPickerModal from './IconPickerModal';
 
-function CategoryManager({ categories, onAddCategory, onDeleteCategory, onUpdateCategory }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [name, setName] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState('Tag');
+function CategoryManager({
+  categories,
+  onAddCategory,
+  onDeleteCategory,
+  onUpdateCategory,
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('Tag');
+
+  // Estado para edición
   const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editIcon, setEditIcon] = useState('Tag');
 
-  const handleSubmit = (e) => {
+  // Modales de selección de íconos
+  const [isNewIconPickerOpen, setIsNewIconPickerOpen] = useState(false);
+  const [isEditIconPickerOpen, setIsEditIconPickerOpen] = useState(false);
+
+  const handleAdd = (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!newCatName.trim()) return;
 
-    if (editingId) {
-      onUpdateCategory({ id: editingId, name, icon: selectedIcon });
-      setEditingId(null);
-    } else {
-      onAddCategory({
-        id: crypto.randomUUID(),
-        name,
-        icon: selectedIcon,
-      });
-    }
+    onAddCategory({
+      name: newCatName.trim(),
+      icon: newCatIcon,
+    });
 
-    setName('');
-    setSelectedIcon('Tag');
+    setNewCatName('');
+    setNewCatIcon('Tag');
   };
 
-  const handleEdit = (category) => {
-    setEditingId(category.id);
-    setName(category.name);
-    setSelectedIcon(category.icon);
+  const startEditing = (category) => {
+    setEditingId(category.id || category._id);
+    setEditName(category.name);
+    setEditIcon(category.icon || 'Tag');
   };
 
-  const handleCancel = () => {
+  const cancelEditing = () => {
     setEditingId(null);
-    setName('');
-    setSelectedIcon('Tag');
+    setEditName('');
+    setEditIcon('Tag');
   };
 
-  // Filtrado de íconos dentro del modal
-  const filteredIcons = Object.entries(AVAILABLE_ICONS).filter(([key, item]) =>
-    item.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    key.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const saveEditing = (category) => {
+    if (!editName.trim()) return;
+
+    onUpdateCategory({
+      ...category,
+      id: category.id || category._id,
+      name: editName.trim(),
+      icon: editIcon,
+    });
+
+    cancelEditing();
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-slate-800">Gestión de Categorías</h3>
+      <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-2 font-bold text-slate-800 text-base focus:outline-none"
         >
-          {isOpen ? 'Ocultar Panel' : 'Administrar Categorías'}
+          <Tag className="w-5 h-5 text-blue-600" />
+          <span>Gestionar Categorías</span>
+          <span className="text-xs text-slate-400">
+            ({categories.length}) {isExpanded ? '▲' : '▼'}
+          </span>
         </button>
       </div>
 
-      {isOpen && (
-        <div className="mt-4 pt-4 border-t border-slate-100">
-          {/* Formulario Crear / Editar */}
-          <form onSubmit={handleSubmit} className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
-            <h4 className="text-sm font-semibold text-slate-700 mb-3">
-              {editingId ? 'Editar Categoría' : 'Nueva Categoría'}
-            </h4>
+      {isExpanded && (
+        <div className="space-y-4 pt-2 border-t border-slate-100">
+          {/* Formulario para agregar nueva categoría */}
+          <form onSubmit={handleAdd} className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsNewIconPickerOpen(true)}
+              className="p-2 border border-slate-300 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-center min-w-[42px]"
+              title="Seleccionar ícono para nueva categoría"
+            >
+              <CategoryIcon iconName={newCatIcon} className="w-5 h-5 text-blue-600" />
+            </button>
 
-            <div className="flex flex-col sm:flex-row gap-3 items-center">
-              <input
-                type="text"
-                placeholder="Nombre de la categoría"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full sm:flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <input
+              type="text"
+              placeholder="Nueva categoría (ej: Hogar, Comida)..."
+              value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+              className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
 
-              {/* Botón para abrir el Modal de Íconos */}
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(true)}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
-              >
-                <div className="p-1 bg-slate-100 rounded border border-slate-200">
-                  <CategoryIcon iconName={selectedIcon} className="w-4 h-4 text-blue-600" />
-                </div>
-                <span>Cambiar Ícono</span>
-              </button>
-
-              <div className="flex gap-2 w-full sm:w-auto">
-                <button
-                  type="submit"
-                  className="flex-1 sm:flex-initial bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors"
-                >
-                  {editingId ? 'Guardar' : 'Agregar'}
-                </button>
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-3 py-2.5 rounded-lg transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                )}
-              </div>
-            </div>
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-colors flex items-center justify-center"
+              title="Agregar categoría"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
           </form>
 
           {/* Lista de Categorías */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {categories.map((cat) => (
-              <div
-                key={cat.id}
-                className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-white rounded-md border border-slate-200 text-slate-700">
-                    <CategoryIcon iconName={cat.icon} className="w-4 h-4 text-slate-700" />
-                  </div>
-                  <span className="text-xs font-semibold text-slate-700">{cat.name}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleEdit(cat)}
-                    className="text-xs text-blue-600 hover:text-blue-800 px-1.5 py-0.5 font-medium"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => onDeleteCategory(cat.id)}
-                    className="text-xs text-rose-600 hover:text-rose-800 px-1.5 py-0.5 font-medium"
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 max-h-60 overflow-y-auto">
+            {categories.map((cat) => {
+              const catId = cat.id || cat._id;
+              const isEditing = editingId === catId;
 
-      {/* MODAL SELECTOR DE ÍCONOS */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-5 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h4 className="font-bold text-slate-800 text-base">Seleccionar Ícono</h4>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold px-2 py-1"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Buscador de íconos */}
-            <div className="py-3">
-              <input
-                type="text"
-                placeholder="Buscar ícono (ej. Auto, Comida, Cine)..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Grid de Íconos */}
-            <div className="flex-1 overflow-y-auto grid grid-cols-4 sm:grid-cols-6 gap-2 p-1">
-              {filteredIcons.map(([iconKey, item]) => (
-                <button
-                  key={iconKey}
-                  type="button"
-                  onClick={() => {
-                    setSelectedIcon(iconKey);
-                    setIsModalOpen(false);
-                    setSearchTerm('');
-                  }}
-                  className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all ${
-                    selectedIcon === iconKey
-                      ? 'border-blue-500 bg-blue-50 text-blue-600 ring-2 ring-blue-200'
-                      : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600'
-                  }`}
+              return (
+                <div
+                  key={catId}
+                  className="flex items-center justify-between p-2.5 border border-slate-200 rounded-lg bg-slate-50/50"
                 >
-                  <CategoryIcon iconName={iconKey} className="w-5 h-5 mb-1" />
-                  <span className="text-[10px] text-slate-500 font-medium truncate w-full text-center">
-                    {item.label}
-                  </span>
-                </button>
-              ))}
-            </div>
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5 w-full">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditIconPickerOpen(true)}
+                        className="p-1.5 border border-slate-300 rounded bg-white hover:bg-slate-50 transition-colors"
+                      >
+                        <CategoryIcon iconName={editIcon} className="w-4 h-4 text-blue-600" />
+                      </button>
 
-            <div className="pt-3 border-t border-slate-100 text-right">
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
-              >
-                Cerrar
-              </button>
-            </div>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+
+                      <button
+                        onClick={() => saveEditing(cat)}
+                        className="p-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
+                        title="Guardar"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={cancelEditing}
+                        className="p-1.5 bg-slate-300 text-slate-700 rounded hover:bg-slate-400 transition-colors"
+                        title="Cancelar"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 truncate">
+                        <div className="p-1.5 bg-white rounded border border-slate-200 flex-shrink-0">
+                          <CategoryIcon iconName={cat.icon || 'Tag'} className="w-4 h-4 text-slate-600" />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-700 truncate">
+                          {cat.name}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => startEditing(cat)}
+                          className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                          title="Editar categoría"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteCategory(catId)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                          title="Eliminar categoría"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* Modal para Seleccionar Ícono de Nueva Categoría */}
+      <IconPickerModal
+        isOpen={isNewIconPickerOpen}
+        onClose={() => setIsNewIconPickerOpen(false)}
+        onSelectIcon={(iconName) => {
+          setNewCatIcon(iconName);
+          setIsNewIconPickerOpen(false);
+        }}
+        currentIcon={newCatIcon}
+      />
+
+      {/* Modal para Seleccionar Ícono al Editar Categoría */}
+      <IconPickerModal
+        isOpen={isEditIconPickerOpen}
+        onClose={() => setIsEditIconPickerOpen(false)}
+        onSelectIcon={(iconName) => {
+          setEditIcon(iconName);
+          setIsEditIconPickerOpen(false);
+        }}
+        currentIcon={editIcon}
+      />
     </div>
   );
 }
