@@ -43,7 +43,6 @@ export const CATEGORY_ICONS = [
   'Hamburger',
   'CookingPot',
   'Sofa',
-  'GraduationCap',
   'Rocket',
   'User',
   'FileText',

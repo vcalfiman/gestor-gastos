@@ -4,12 +4,16 @@ import { CategoryIcon } from '../utils/categoryIcons';
 import IconPickerModal from './IconPickerModal';
 import { formatCurrency } from '../utils/formatters';
 
-function ExpenseForm({ onAddExpense, categories, selectedPeriod }) {
+function ExpenseForm({ onAddExpense, categories }) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
   const [category, setCategory] = useState(categories[0]?.name || 'Varios');
-  const [selectedIcon, setSelectedIcon] = useState('Zap'); // Ícono por defecto para el movimiento
+  
+  // Estado para la fecha, inicializado con la fecha actual en formato YYYY-MM-DD
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  const [selectedIcon, setSelectedIcon] = useState('Zap');
   const [isIconModalOpen, setIsIconModalOpen] = useState(false);
 
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
@@ -46,7 +50,6 @@ function ExpenseForm({ onAddExpense, categories, selectedPeriod }) {
   const selectedCategoryObj = categories.find((c) => c.name === category);
   const categoryDefaultIcon = selectedCategoryObj?.icon || 'Tag';
 
-  // Si cambia la categoría, solo actualizamos el nombre de la categoría,
   const handleCategorySelect = (catName) => {
     setCategory(catName);
     setIsCategoryDropdownOpen(false);
@@ -59,29 +62,20 @@ function ExpenseForm({ onAddExpense, categories, selectedPeriod }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!description.trim() || !amount) return;
-
-    const now = new Date();
-    const currentMonthStr = `${now.getFullYear()}-${String(
-      now.getMonth() + 1
-    ).padStart(2, '0')}`;
-
-    const assignedDate =
-      selectedPeriod === currentMonthStr
-        ? now.toISOString().split('T')[0]
-        : `${selectedPeriod}-01`;
+    if (!description.trim() || !amount || Number(amount) <= 0) return;
 
     onAddExpense({
-      description,
+      description: description.trim(),
       amount: Number(amount),
       type,
       category,
       icon: selectedIcon || categoryDefaultIcon,
-      date: assignedDate,
+      date, // Enviamos la fecha seleccionada manualmente por el usuario
     });
 
     setDescription('');
     setAmount('');
+    // Opcional: si prefieres que la fecha vuelva a la de hoy tras guardar, o mantenerla. La dejamos libre.
   };
 
   return (
@@ -91,7 +85,7 @@ function ExpenseForm({ onAddExpense, categories, selectedPeriod }) {
       </h3>
       <form
         onSubmit={handleSubmit}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 items-center"
       >
         {/* Selector de Ícono para el Movimiento */}
         <div className="flex items-center justify-center">
@@ -125,9 +119,19 @@ function ExpenseForm({ onAddExpense, categories, selectedPeriod }) {
           <input
             type="text"
             placeholder="Monto"
-            value={amount ? formatCurrency(amount) : ''}
+            value={amount ? formatCurrency(Number(amount)) : ''}
             onChange={handleAmountChange}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Selector de Fecha */}
+        <div>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           />
         </div>
 
@@ -187,7 +191,7 @@ function ExpenseForm({ onAddExpense, categories, selectedPeriod }) {
           )}
         </div>
 
-        {/* Dropdown: Categorías Principales */}
+        {/* Dropdown: Categorías */}
         <div className="relative" ref={categoryDropdownRef}>
           <button
             type="button"

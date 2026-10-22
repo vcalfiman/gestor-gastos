@@ -43,24 +43,20 @@ function IconPickerModal({ isOpen, onClose, onSelectIcon, currentIcon }) {
 
         {/* Grid de Íconos */}
         <div className="p-4 overflow-y-auto grid grid-cols-5 gap-2 max-h-60">
-          {filteredIcons.map((iconName) => {
-            const isSelected = currentIcon === iconName;
-            return (
-              <button
-                key={iconName}
-                type="button"
-                onClick={() => onSelectIcon(iconName)}
-                className={`p-3 rounded-lg flex flex-col items-center justify-center transition-colors ${
-                  isSelected
-                    ? 'bg-blue-100 text-blue-600 border border-blue-300'
-                    : 'hover:bg-slate-100 text-slate-600'
-                }`}
-                title={iconName}
-              >
-                <CategoryIcon iconName={iconName} className="w-6 h-6" />
-              </button>
-            );
-          })}
+          {filteredIcons.map((iconName, index) => (
+          <button
+            key={`${iconName}-${index}`}
+            type="button"
+            onClick={() => onSelectIcon(iconName)}
+            className={`p-3 rounded-xl flex items-center justify-center transition-all ${
+              currentIcon === iconName
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+            }`}
+          >
+            <CategoryIcon iconName={iconName} className="w-6 h-6" />
+          </button>
+        ))}
 
           {filteredIcons.length === 0 && (
             <div className="col-span-5 text-center text-xs text-slate-400 py-6">

@@ -1,169 +1,222 @@
 import { useState, useEffect } from 'react';
-import Summary from './components/Summary';
+import AuthScreen from './components/AuthScreen';
 import ExpenseForm from './components/ExpenseForm';
 import ExpenseList from './components/ExpenseList';
 import CategoryManager from './components/CategoryManager';
-import PeriodSelector from './components/PeriodSelector';
-import {
-  fetchCategories,
-  createCategoryApi,
-  updateCategoryApi,
-  deleteCategoryApi,
-  fetchExpenses,
-  createExpenseApi,
-  updateExpenseApi,
-  deleteExpenseApi,
-} from './utils/api';
+import { 
+  fetchExpenses, 
+  createExpenseApi, 
+  updateExpenseApi, 
+  deleteExpenseApi, 
+  fetchCategories, 
+  createCategoryApi, 
+  updateCategoryApi, 
+  deleteCategoryApi 
+} from './services/api';
+import { LogOut, Wallet, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
+import { formatCurrency } from './utils/formatters';
 
 function App() {
-  const getCurrentPeriod = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  };
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [userEmail, setUserEmail] = useState(localStorage.getItem('userEmail') || '');
 
-  const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriod);
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Período actual en formato "YYYY-MM"
+  const currentDateStr = new Date().toISOString().slice(0, 7);
+  const [selectedPeriod, setSelectedPeriod] = useState(currentDateStr);
 
-  // Cargar Categorías iniciales desde MongoDB
+  // Cargar datos al iniciar sesión o cambiar de período
   useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const data = await fetchCategories();
-        // Mapeamos _id de MongoDB a id para mantener compatibilidad
-        const formatted = data.map((c) => ({ ...c, id: c._id }));
-        setCategories(formatted);
-      } catch (err) {
-        console.error('Error al cargar categorías:', err);
-      }
-    };
-    loadCategories();
-  }, []);
+    if (token) {
+      loadData();
+    }
+  }, [token, selectedPeriod]);
 
-  // Cargar Movimientos cada vez que cambia el Período
-  useEffect(() => {
-    const loadExpenses = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchExpenses(selectedPeriod);
-        const formatted = data.map((e) => ({ ...e, id: e._id }));
-        setExpenses(formatted);
-      } catch (err) {
-        console.error('Error al cargar movimientos:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadExpenses();
-  }, [selectedPeriod]);
-
-  // --- Handlers para Movimientos ---
-  const handleAddExpense = async (newExpenseData) => {
+  const loadData = async () => {
     try {
-      const saved = await createExpenseApi(newExpenseData);
-      const formatted = { ...saved, id: saved._id };
-      setExpenses([formatted, ...expenses]);
-    } catch (err) {
-      console.error('Error al agregar movimiento:', err);
+      const [expensesData, categoriesData] = await Promise.all([
+        fetchExpenses(selectedPeriod),
+        fetchCategories()
+      ]);
+      setExpenses(expensesData);
+      setCategories(categoriesData);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      if (error.message.includes('Token') || error.message.includes('401') || error.message.includes('403')) {
+        handleLogout();
+      }
+    }
+  };
+
+  const handleLoginSuccess = (email) => {
+    setToken(localStorage.getItem('token'));
+    setUserEmail(email);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userEmail');
+    setToken(null);
+    setUserEmail('');
+    setExpenses([]);
+    setCategories([]);
+  };
+
+  // --- ACCIONES DE GASTOS ---
+  const handleAddExpense = async (expenseData) => {
+  try {
+    const newExpense = await createExpenseApi(expenseData);
+    setExpenses((prevExpenses) => [newExpense, ...prevExpenses]); // <-- Añade el gasto al inicio de la lista
+  } catch (error) {
+    console.error("Error al agregar gasto:", error);
+  }
+};
+
+  const handleUpdateExpense = async (updatedExpenseData) => {
+    try {
+      await updateExpenseApi(updatedExpenseData.id || updatedExpenseData._id, updatedExpenseData);
+      loadData();
+    } catch (error) {
+      console.error('Error al actualizar movimiento:', error);
     }
   };
 
   const handleDeleteExpense = async (id) => {
     try {
       await deleteExpenseApi(id);
-      setExpenses(expenses.filter((e) => e.id !== id));
-    } catch (err) {
-      console.error('Error al eliminar movimiento:', err);
+      loadData();
+    } catch (error) {
+      console.error('Error al eliminar movimiento:', error);
     }
   };
 
-  const handleUpdateExpense = async (updatedExpense) => {
+  // --- ACCIONES DE CATEGORÍAS ---
+  const handleAddCategory = async (catData) => {
     try {
-      const saved = await updateExpenseApi(updatedExpense.id, updatedExpense);
-      const formatted = { ...saved, id: saved._id };
-      setExpenses(
-        expenses.map((e) => (e.id === formatted.id ? formatted : e))
-      );
-    } catch (err) {
-      console.error('Error al actualizar movimiento:', err);
+      await createCategoryApi(catData);
+      loadData();
+    } catch (error) {
+      console.error('Error al agregar categoría:', error);
     }
   };
 
-  // --- Handlers para Categorías ---
-  const handleAddCategory = async (newCatData) => {
+  const handleUpdateCategory = async (catData) => {
     try {
-      const saved = await createCategoryApi(newCatData);
-      const formatted = { ...saved, id: saved._id };
-      setCategories([...categories, formatted]);
-    } catch (err) {
-      console.error('Error al agregar categoría:', err);
+      await updateCategoryApi(catData.id || catData._id, catData);
+      loadData();
+    } catch (error) {
+      console.error('Error al actualizar categoría:', error);
     }
   };
 
   const handleDeleteCategory = async (id) => {
     try {
       await deleteCategoryApi(id);
-      setCategories(categories.filter((c) => c.id !== id));
-    } catch (err) {
-      console.error('Error al eliminar categoría:', err);
+      loadData();
+    } catch (error) {
+      console.error('Error al eliminar categoría:', error);
     }
   };
 
-  const handleUpdateCategory = async (updatedCat) => {
-    try {
-      const saved = await updateCategoryApi(updatedCat.id, updatedCat);
-      const formatted = { ...saved, id: saved._id };
-      setCategories(
-        categories.map((c) => (c.id === formatted.id ? formatted : c))
-      );
-    } catch (err) {
-      console.error('Error al actualizar categoría:', err);
-    }
-  };
+  // Si no hay token, mostramos la pantalla de autenticación
+  if (!token) {
+    return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Cálculos de totales del período
+  const totalIncome = expenses
+    .filter((e) => e.type === 'income')
+    .reduce((acc, curr) => acc + curr.amount, 0);
+
+  const totalExpense = expenses
+    .filter((e) => e.type === 'expense')
+    .reduce((acc, curr) => acc + curr.amount, 0);
+
+  const totalBalance = totalIncome - totalExpense;
 
   return (
-    <div className="min-h-screen bg-slate-100 py-10 px-4">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-extrabold text-center text-slate-800 mb-8">
-          Gestor de Gastos (MERN)
-        </h1>
+    <div className="min-h-screen bg-slate-100 text-slate-800 pb-12">
+      {/* Navbar Superior */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 p-2 rounded-xl text-white">
+              <Wallet className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="font-bold text-slate-800 text-base leading-tight">Gestor de Gastos</h1>
+              <p className="text-xs text-slate-500 truncate max-w-[200px] sm:max-w-xs">{userEmail}</p>
+            </div>
+          </div>
 
-        <PeriodSelector
-          selectedPeriod={selectedPeriod}
-          onPeriodChange={setSelectedPeriod}
-        />
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl transition-colors"
+            title="Cerrar sesión"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Cerrar Sesión</span>
+          </button>
+        </div>
+      </header>
 
-        <Summary expenses={expenses} />
+      {/* Contenido Principal */}
+      <main className="max-w-4xl mx-auto px-4 pt-6 space-y-6">
+        
+        {/* Selector de Período y Tarjetas de Resumen */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-blue-600" />
+            <span className="text-xs font-bold text-slate-700">Período:</span>
+            <input
+              type="month"
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+            />
+          </div>
 
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Balance</span>
+              <span className="text-xs sm:text-sm font-extrabold text-blue-600">{formatCurrency(totalBalance)}</span>
+            </div>
+            <div className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100">
+              <span className="text-[10px] uppercase font-bold text-emerald-600 block flex items-center justify-center gap-0.5"><TrendingUp className="w-3 h-3"/>Ingresos</span>
+              <span className="text-xs sm:text-sm font-extrabold text-emerald-600">{formatCurrency(totalIncome)}</span>
+            </div>
+            <div className="bg-rose-50/50 p-2 rounded-xl border border-rose-100">
+              <span className="text-[10px] uppercase font-bold text-rose-600 block flex items-center justify-center gap-0.5"><TrendingDown className="w-3 h-3"/>Gastos</span>
+              <span className="text-xs sm:text-sm font-extrabold text-rose-600">{formatCurrency(totalExpense)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Gestor de Categorías */}
         <CategoryManager
           categories={categories}
           onAddCategory={handleAddCategory}
-          onDeleteCategory={handleDeleteCategory}
           onUpdateCategory={handleUpdateCategory}
+          onDeleteCategory={handleDeleteCategory}
         />
 
+        {/* Formulario para Nuevo Movimiento */}
         <ExpenseForm
-          onAddExpense={handleAddExpense}
           categories={categories}
-          selectedPeriod={selectedPeriod}
+          onAddExpense={handleAddExpense}
         />
 
-        {loading ? (
-          <div className="text-center py-8 text-slate-500 font-medium text-sm">
-            Cargando datos desde MongoDB...
-          </div>
-        ) : (
-          <ExpenseList
-            expenses={expenses}
-            categories={categories}
-            onDeleteExpense={handleDeleteExpense}
-            onUpdateExpense={handleUpdateExpense}
-          />
-        )}
-      </div>
+        {/* Listado de Movimientos del Período */}
+        <ExpenseList
+          expenses={expenses}
+          categories={categories}
+          onDeleteExpense={handleDeleteExpense}
+          onUpdateExpense={handleUpdateExpense}
+        />
+
+      </main>
     </div>
   );
 }
