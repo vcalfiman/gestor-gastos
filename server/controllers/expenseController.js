@@ -1,18 +1,14 @@
 import Expense from '../models/Expense.js';
 
-// GET: Filtra movimientos por el período enviado ("YYYY-MM")
+// GET: Obtener movimientos del usuario autenticado por período
 export const getExpenses = async (req, res) => {
   try {
-    const { period } = req.query; // Ejemplo: "2026-09"
-    let query = {};
+    const { period } = req.query;
+    let query = { userId: req.userId }; // <- Filtrar por el usuario logueado
 
     if (period) {
       const [year, month] = period.split('-').map(Number);
-      
-      // Creamos la fecha de inicio en UTC exacto para el primer día del mes (00:00:00.000)
       const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-      
-      // Creamos la fecha de fin en UTC exacto para el último día del mes (23:59:59.999)
       const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
       query.date = { $gte: startDate, $lte: endDate };
@@ -25,29 +21,58 @@ export const getExpenses = async (req, res) => {
   }
 };
 
+// POST: Crear movimiento asignado al usuario
 export const createExpense = async (req, res) => {
   try {
-    const newExpense = new Expense(req.body);
-    const saved = await newExpense.save();
-    res.status(201).json(saved);
+    const { description, amount, type, category, icon, date } = req.body;
+    
+    const newExpense = await Expense.create({
+      userId: req.userId, // <- Asociar al usuario
+      description,
+      amount,
+      type,
+      category,
+      icon,
+      date
+    });
+
+    res.status(201).json(newExpense);
   } catch (error) {
     res.status(400).json({ message: 'Error al crear movimiento', error: error.message });
   }
 };
 
+// PUT: Actualizar movimiento asegurando que pertenezca al usuario
 export const updateExpense = async (req, res) => {
   try {
-    const updated = await Expense.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { id } = req.params;
+    const updated = await Expense.findOneAndUpdate(
+      { _id: id, userId: req.userId }, 
+      req.body, 
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Movimiento no encontrado o no autorizado' });
+    }
+
     res.json(updated);
   } catch (error) {
     res.status(400).json({ message: 'Error al actualizar movimiento', error: error.message });
   }
 };
 
+// DELETE: Eliminar movimiento del usuario
 export const deleteExpense = async (req, res) => {
   try {
-    await Expense.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Movimiento eliminado' });
+    const { id } = req.params;
+    const deleted = await Expense.findOneAndDelete({ _id: id, userId: req.userId });
+
+    if (!deleted) {
+      return res.status(404).json({ message: 'Movimiento no encontrado o no autorizado' });
+    }
+
+    res.json({ message: 'Movimiento eliminado con éxito' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar movimiento', error: error.message });
   }
