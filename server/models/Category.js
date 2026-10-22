@@ -9,5 +9,7 @@ const categorySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-categorySchema.index({ userId: 1 });
+// Índice único por usuario: Cada usuario puede tener sus propias categorías sin repetirlas entre sí
+categorySchema.index({ userId: 1, name: 1 }, { unique: true });
+
 export default mongoose.model('Category', categorySchema);
